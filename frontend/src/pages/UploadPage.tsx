@@ -14,7 +14,7 @@ type JobProgress = {
 }
 
 export function UploadPage(): JSX.Element {
-  const [datasetId, setDatasetId] = useState('')
+  const DATASET_ID = '1182254526484927' // Hardcoded dataset ID
   const [timezone, setTimezone] = useState('America/Guayaquil')
   const [uploadTag, setUploadTag] = useState('')
   const [jobId, setJobId] = useState<string | null>(null)
@@ -27,7 +27,7 @@ export function UploadPage(): JSX.Element {
 
   const [fileName, setFileName] = useState<string>('')
   
-  const canSubmit = useMemo(() => datasetId.trim().length > 0 && fileName.length > 0, [datasetId, fileName])
+  const canSubmit = useMemo(() => fileName.length > 0, [fileName])
   const progressPercent = progress ? Math.round((progress.processed_rows / progress.total_rows) * 100) || 0 : 0
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -54,7 +54,7 @@ export function UploadPage(): JSX.Element {
     try {
       const form = new FormData()
       form.append('file', file)
-      form.append('dataset_id', datasetId)
+      form.append('dataset_id', DATASET_ID)
       if (uploadTag) form.append('upload_tag', uploadTag)
       if (timezone) form.append('timezone', timezone)
 
@@ -149,42 +149,18 @@ export function UploadPage(): JSX.Element {
       <div className="card">
         <form onSubmit={handleSubmit} className="form">
           <div className="form-group">
-            <label htmlFor="dataset-id">Dataset ID *</label>
+            <label htmlFor="upload-tag">Etiqueta del upload (opcional)</label>
             <input
-              id="dataset-id"
+              id="upload-tag"
               type="text"
-              value={datasetId}
-              onChange={(e) => setDatasetId(e.target.value)}
-              required
-              placeholder="1182254526484927"
+              value={uploadTag}
+              onChange={(e) => setUploadTag(e.target.value)}
+              placeholder="fybeca-septiembre-2025"
               className="input"
             />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="timezone">Timezone</label>
-              <input
-                id="timezone"
-                type="text"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                placeholder="America/Guayaquil"
-                className="input"
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="upload-tag">Upload tag (opcional)</label>
-              <input
-                id="upload-tag"
-                type="text"
-                value={uploadTag}
-                onChange={(e) => setUploadTag(e.target.value)}
-                placeholder="fybeca-sept-2025"
-                className="input"
-              />
-            </div>
+            <span style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
+              Ayuda a identificar este lote de datos en Meta
+            </span>
           </div>
 
           <div className="form-group">
