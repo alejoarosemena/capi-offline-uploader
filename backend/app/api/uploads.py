@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,7 @@ from ..services.capi_client import CapiClient
 from ..services.progress import JobProgress, progress_store
 from ..services.transform import TransformConfig, iter_event_batches
 
-
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -54,6 +55,7 @@ async def create_upload(
 
 
 async def _process_job(job_id: str, cfg: TransformConfig) -> None:
+    logger.info(f"Starting job {job_id} for dataset {cfg.dataset_id}")
     progress = progress_store.get(job_id)
     if not progress:
         progress = JobProgress(job_id=job_id, status="running")
@@ -61,14 +63,20 @@ async def _process_job(job_id: str, cfg: TransformConfig) -> None:
     try:
         # Stream-transform and send in batches without keeping all events in memory
         failed_batches = 0
+        total_batches = 0
         client = CapiClient(access_token=settings.meta_access_token)
         try:
             for batch in iter_event_batches(progress_store.input_path(job_id), cfg, progress, progress_store, settings.batch_size):
+                total_batches += 1
+                logger.info(f"Processing batch {total_batches} ({len(batch)} events)")
                 ok, info = await client.send_batch(cfg.dataset_id, batch, upload_tag=cfg.upload_tag)
                 if not ok:
                     failed_batches += 1
+                    logger.error(f"Batch {total_batches} failed: {info}")
         finally:
             await client.close()
+        
+        logger.info(f"Job {job_id} finished: {total_batches} batches, {failed_batches} failed")
         if failed_batches > 0:
             progress.status = "failed"
             progress.message = f"Fallaron {failed_batches} lotes al enviar a Meta"
@@ -77,6 +85,7 @@ async def _process_job(job_id: str, cfg: TransformConfig) -> None:
             progress.message = "Completado"
         progress_store.set(progress)
     except Exception as exc:
+        logger.error(f"Job {job_id} crashed: {exc}", exc_info=True)
         progress.status = "failed"
         progress.message = f"Error: {exc}"
         progress_store.set(progress)

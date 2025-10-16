@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from typing import Any, Dict, List, Tuple
 
 import httpx
 
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class CapiClient:
@@ -23,6 +26,8 @@ class CapiClient:
         if upload_tag:
             payload["upload_tag"] = upload_tag
 
+        logger.info(f"Sending batch of {len(events)} events to Meta (dataset: {dataset_id}, tag: {upload_tag})")
+
         retries = settings.max_retries
         backoff = settings.retry_backoff_base
         for attempt in range(retries + 1):
@@ -30,16 +35,20 @@ class CapiClient:
                 resp = await self._client.post(url, params=params, json=payload)
                 # Success codes are 200-range
                 if 200 <= resp.status_code < 300:
+                    logger.info(f"✓ Batch sent successfully: {len(events)} events (status: {resp.status_code})")
                     return True, resp.json()
                 # Retry on 429 and 5xx
                 if resp.status_code in (429,) or 500 <= resp.status_code < 600:
+                    logger.warning(f"Retryable error {resp.status_code}, attempt {attempt+1}/{retries+1}")
                     if attempt < retries:
                         await asyncio.sleep(backoff)
                         backoff *= 2
                         continue
                 # Non-retryable error
+                logger.error(f"✗ Failed to send batch: status {resp.status_code}, body: {resp.text[:200]}")
                 return False, {"status_code": resp.status_code, "body": resp.text}
             except httpx.RequestError as exc:
+                logger.error(f"Network error on attempt {attempt+1}: {exc}")
                 if attempt < retries:
                     await asyncio.sleep(backoff)
                     backoff *= 2

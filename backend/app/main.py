@@ -1,9 +1,15 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .api.uploads import router as uploads_router
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 def create_app() -> FastAPI:
     app = FastAPI(title="CAPI Offline CSV Uploader", version="0.1.0")
