@@ -58,46 +58,61 @@ export function UploadPage(): JSX.Element {
       if (uploadTag) form.append('upload_tag', uploadTag)
       if (timezone) form.append('timezone', timezone)
 
-      // Simular progreso del upload basado en el tamaño del archivo
-      const fileSize = file.size
-      const fileSizeMB = fileSize / (1024 * 1024)
-      // Estimación: ~2-5 MB/s dependiendo de conexión
-      const estimatedTime = Math.max(10000, (fileSize / 3000000) * 1000) // Mínimo 10s, ~3MB/s
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) return prev // Mantener en 90% hasta que responda el servidor
-          return prev + (100 / (estimatedTime / 500)) // Incremento suave
-        })
-      }, 500)
-
-      const controller = new AbortController()
-      // Timeout generoso para archivos grandes: 5 minutos para 300MB
-      const timeout = setTimeout(() => controller.abort(), 300000)
-
-      const res = await fetch(`${API_BASE_URL}/api/uploads`, {
-        method: 'POST',
-        body: form,
-        signal: controller.signal,
-      })
+      // Usar XMLHttpRequest para progreso REAL del upload
+      const xhr = new XMLHttpRequest()
       
-      clearInterval(progressInterval)
-      clearTimeout(timeout)
-      setUploadProgress(100)
-      setWarming(false)
+      // Crear una promesa para manejar el resultado
+      const uploadPromise = new Promise<{ job_id: string }>((resolve, reject) => {
+        // Progreso REAL del upload
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100)
+            setUploadProgress(percentComplete)
+            console.log(`Upload real: ${percentComplete}% (${(e.loaded / (1024*1024)).toFixed(1)}MB / ${(e.total / (1024*1024)).toFixed(1)}MB)`)
+          }
+        })
 
-      if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || 'Error al iniciar upload')
-      }
-      const { job_id } = await res.json()
+        // Cuando termina el upload
+        xhr.addEventListener('load', () => {
+          setWarming(false)
+          if (xhr.status === 200) {
+            try {
+              const response = JSON.parse(xhr.responseText)
+              resolve(response)
+            } catch (err) {
+              reject(new Error('Error al parsear respuesta del servidor'))
+            }
+          } else {
+            reject(new Error(xhr.responseText || `Error HTTP ${xhr.status}`))
+          }
+        })
+
+        // Manejo de errores
+        xhr.addEventListener('error', () => {
+          reject(new Error('Error de red al subir el archivo'))
+        })
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload cancelado'))
+        })
+
+        xhr.addEventListener('timeout', () => {
+          reject(new Error('Timeout: El archivo es muy grande o la conexión es lenta'))
+        })
+      })
+
+      // Configurar y enviar request
+      xhr.open('POST', `${API_BASE_URL}/api/uploads`)
+      xhr.timeout = 300000 // 5 minutos para archivos grandes
+      xhr.send(form)
+
+      // Esperar resultado
+      const { job_id } = await uploadPromise
       setJobId(job_id)
+      setUploadProgress(100)
       await pollProgress(job_id)
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        setError('⏳ Timeout: El archivo es muy grande o la conexión es lenta. Intenta con un archivo más pequeño o mejora tu conexión.')
-      } else {
-        setError(err?.message || 'Error desconocido')
-      }
+      setError(err?.message || 'Error desconocido')
     } finally {
       setIsUploading(false)
       setWarming(false)
@@ -242,11 +257,11 @@ export function UploadPage(): JSX.Element {
             {fileName}
           </p>
           <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
-            {uploadProgress < 20 && '🔄 Iniciando transferencia...'}
-            {uploadProgress >= 20 && uploadProgress < 50 && '📡 Enviando datos al servidor...'}
-            {uploadProgress >= 50 && uploadProgress < 85 && `⚡ Transferencia en progreso... (archivos grandes pueden tardar varios minutos)`}
-            {uploadProgress >= 85 && uploadProgress < 95 && '🔄 Finalizando upload...'}
-            {uploadProgress >= 95 && '✅ Guardando en servidor y preparando procesamiento...'}
+            {uploadProgress < 10 && '🔄 Conectando con el servidor...'}
+            {uploadProgress >= 10 && uploadProgress < 30 && '📡 Iniciando transferencia de datos...'}
+            {uploadProgress >= 30 && uploadProgress < 70 && `⚡ Transfiriendo archivo... (${Math.round(uploadProgress)}% completado)`}
+            {uploadProgress >= 70 && uploadProgress < 95 && '📤 Finalizando transferencia...'}
+            {uploadProgress >= 95 && '✅ Archivo recibido, iniciando procesamiento...'}
           </p>
           <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.85rem', marginTop: '0.5rem' }}>
             💡 No cierres esta ventana. Archivos de 300 MB pueden tardar 2-3 minutos.

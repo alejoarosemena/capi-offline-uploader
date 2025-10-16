@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Upload desde Browser</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .test { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de Upload - CAPI Offline</h1>
+    
+    <div class="test">
+        <h2>1. Verificar Backend</h2>
+        <button onclick="testBackend()">Probar Backend</button>
+        <div id="backend-result"></div>
+    </div>
+    
+    <div class="test">
+        <h2>2. Upload de Prueba (5 filas)</h2>
+        <button onclick="testUpload()">Subir CSV de Prueba</button>
+        <div id="upload-result"></div>
+    </div>
+    
+    <div class="test">
+        <h2>3. Upload desde Archivo Local</h2>
+        <input type="file" id="fileInput" accept=".csv">
+        <button onclick="uploadFile()">Subir Archivo</button>
+        <div id="file-result"></div>
+    </div>
+
+    <script>
+        // Intentar con ambas URLs posibles
+        const BACKENDS = [
+            'https://capi-offline-csv-uploader.onrender.com',
+            'https://capi-offline-uploader.onrender.com'
+        ];
+        let API_BASE = BACKENDS[0];
+        const DATASET_ID = '1182254526484927';
+        
+        async function findWorkingBackend() {
+            for (const url of BACKENDS) {
+                try {
+                    const resp = await fetch(url + '/api/health');
+                    if (resp.ok) {
+                        API_BASE = url;
+                        return url;
+                    }
+                } catch (e) {}
+            }
+            return null;
+        }
+        
+        async function testBackend() {
+            const resultDiv = document.getElementById('backend-result');
+            resultDiv.innerHTML = '<p class="info">Probando backends...</p>';
+            
+            const working = await findWorkingBackend();
+            if (working) {
+                resultDiv.innerHTML = `<p class="success">✅ Backend funcionando en: ${working}</p>`;
+            } else {
+                resultDiv.innerHTML = '<p class="error">❌ No se pudo conectar a ningún backend</p>';
+            }
+        }
+        
+        async function testUpload() {
+            const resultDiv = document.getElementById('upload-result');
+            resultDiv.innerHTML = '<p class="info">Creando CSV de prueba...</p>';
+            
+            // Crear CSV de prueba
+            const csvContent = `CORREO,CELULAR,FACTURA,NOMBRE_CATEGORIA,COD_ITEM,VENTA_NETA,FECHA
+test1@example.com,+593987654321,TEST001,CATEGORIA TEST,ITEM001,10.50,2025-10-01
+test2@example.com,+593987654322,TEST002,CATEGORIA TEST,ITEM002,20.75,2025-10-02
+test3@example.com,+593987654323,TEST003,CATEGORIA TEST,ITEM003,15.00,2025-10-03
+test4@example.com,+593987654324,TEST004,CATEGORIA TEST,ITEM004,30.25,2025-10-04
+test5@example.com,+593987654325,TEST005,CATEGORIA TEST,ITEM005,25.50,2025-10-05`;
+            
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const file = new File([blob], 'test.csv', { type: 'text/csv' });
+            
+            await uploadFileToBackend(file, resultDiv);
+        }
+        
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('file-result');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<p class="error">Por favor selecciona un archivo</p>';
+                return;
+            }
+            
+            await uploadFileToBackend(fileInput.files[0], resultDiv);
+        }
+        
+        async function uploadFileToBackend(file, resultDiv) {
+            try {
+                // Asegurar que tenemos el backend correcto
+                await findWorkingBackend();
+                
+                resultDiv.innerHTML = `<p class="info">Subiendo ${file.name} (${(file.size/1024).toFixed(1)} KB)...</p>`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('dataset_id', DATASET_ID);
+                formData.append('upload_tag', 'test-browser-' + Date.now());
+                formData.append('timezone', 'America/Guayaquil');
+                
+                const response = await fetch(API_BASE + '/api/uploads', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    resultDiv.innerHTML += `<p class="error">❌ Error: ${error}</p>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                resultDiv.innerHTML += `<p class="success">✅ Upload exitoso! Job ID: ${data.job_id}</p>`;
+                
+                // Monitorear progreso
+                await monitorJob(data.job_id, resultDiv);
+                
+            } catch (error) {
+                resultDiv.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function monitorJob(jobId, resultDiv) {
+            resultDiv.innerHTML += '<p class="info">Monitoreando progreso...</p>';
+            
+            let done = false;
+            while (!done) {
+                await new Promise(r => setTimeout(r, 1500));
+                
+                try {
+                    const resp = await fetch(API_BASE + '/api/jobs/' + jobId);
+                    const progress = await resp.json();
+                    
+                    resultDiv.innerHTML = resultDiv.innerHTML.replace(/<p class="info">Status:.*<\/p>/, '');
+                    resultDiv.innerHTML += `<p class="info">Status: ${progress.status} | Procesadas: ${progress.processed_rows}/${progress.total_rows} | OK: ${progress.succeeded} | Errores: ${progress.failed}</p>`;
+                    
+                    if (progress.status === 'completed') {
+                        resultDiv.innerHTML += `<p class="success">✅ COMPLETADO! ${progress.succeeded} eventos enviados a Meta</p>`;
+                        done = true;
+                    } else if (progress.status === 'failed') {
+                        resultDiv.innerHTML += `<p class="error">❌ FALLO: ${progress.message}</p>`;
+                        done = true;
+                    }
+                } catch (e) {
+                    resultDiv.innerHTML += `<p class="error">Error monitoreando: ${e.message}</p>`;
+                    done = true;
+                }
+            }
+        }
+        
+        // Auto-detectar backend al cargar
+        window.onload = async () => {
+            const working = await findWorkingBackend();
+            if (working) {
+                document.body.insertAdjacentHTML('afterbegin', `<p class="success">Backend detectado: ${working}</p>`);
+            }
+        };
+    </script>
+</body>
+</html>
