@@ -55,9 +55,9 @@ export function UploadPage(): JSX.Element {
       if (uploadTag) form.append('upload_tag', uploadTag)
       if (timezone) form.append('timezone', timezone)
 
-      // Timeout de 60s para cold start de Render Free
+      // Timeout de 90s para cold start de Render Free (puede tardar hasta 60s)
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 60000)
+      const timeout = setTimeout(() => controller.abort(), 90000)
 
       const res = await fetch(`${API_BASE_URL}/api/uploads`, {
         method: 'POST',
@@ -76,7 +76,7 @@ export function UploadPage(): JSX.Element {
       await pollProgress(job_id)
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        setError('Timeout: El servidor tardó mucho en responder. Intenta nuevamente en 30 segundos.')
+        setError('⏳ El servidor estaba dormido y está despertando. Por favor, espera 30 segundos e intenta nuevamente. (Render Free se duerme después de 15 min sin uso)')
       } else {
         setError(err?.message || 'Error desconocido')
       }
