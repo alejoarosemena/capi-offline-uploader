@@ -22,6 +22,7 @@ export function UploadPage(): JSX.Element {
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warming, setWarming] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [fileName, setFileName] = useState<string>('')
@@ -41,6 +42,7 @@ export function UploadPage(): JSX.Element {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setUploadProgress(0)
     const file = fileInputRef.current?.files?.[0]
     if (!file) {
       setError('Selecciona un archivo CSV')
@@ -48,6 +50,7 @@ export function UploadPage(): JSX.Element {
     }
     setIsUploading(true)
     setWarming(true)
+    
     try {
       const form = new FormData()
       form.append('file', file)
@@ -55,16 +58,31 @@ export function UploadPage(): JSX.Element {
       if (uploadTag) form.append('upload_tag', uploadTag)
       if (timezone) form.append('timezone', timezone)
 
-      // Timeout de 90s para cold start de Render Free (puede tardar hasta 60s)
+      // Simular progreso del upload basado en el tamaño del archivo
+      const fileSize = file.size
+      const fileSizeMB = fileSize / (1024 * 1024)
+      // Estimación: ~2-5 MB/s dependiendo de conexión
+      const estimatedTime = Math.max(10000, (fileSize / 3000000) * 1000) // Mínimo 10s, ~3MB/s
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) return prev // Mantener en 90% hasta que responda el servidor
+          return prev + (100 / (estimatedTime / 500)) // Incremento suave
+        })
+      }, 500)
+
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 90000)
+      // Timeout generoso para archivos grandes: 5 minutos para 300MB
+      const timeout = setTimeout(() => controller.abort(), 300000)
 
       const res = await fetch(`${API_BASE_URL}/api/uploads`, {
         method: 'POST',
         body: form,
         signal: controller.signal,
       })
+      
+      clearInterval(progressInterval)
       clearTimeout(timeout)
+      setUploadProgress(100)
       setWarming(false)
 
       if (!res.ok) {
@@ -76,13 +94,14 @@ export function UploadPage(): JSX.Element {
       await pollProgress(job_id)
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        setError('⏳ El servidor estaba dormido y está despertando. Por favor, espera 30 segundos e intenta nuevamente. (Render Free se duerme después de 15 min sin uso)')
+        setError('⏳ Timeout: El archivo es muy grande o la conexión es lenta. Intenta con un archivo más pequeño o mejora tu conexión.')
       } else {
         setError(err?.message || 'Error desconocido')
       }
     } finally {
       setIsUploading(false)
       setWarming(false)
+      setUploadProgress(0)
     }
   }
 
@@ -177,6 +196,29 @@ export function UploadPage(): JSX.Element {
           </button>
         </form>
       </div>
+
+      {isUploading && uploadProgress > 0 && (
+        <div className="card upload-progress">
+          <h2 className="section-title">📤 Subiendo archivo...</h2>
+          <div className="progress-bar">
+            <div className="progress-fill progress-fill-animated" style={{ width: `${uploadProgress}%` }} />
+          </div>
+          <p className="progress-text">{Math.round(uploadProgress)}%</p>
+          <p style={{ textAlign: 'center', color: '#374151', fontWeight: 500, marginBottom: '0.5rem' }}>
+            {fileName}
+          </p>
+          <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+            {uploadProgress < 20 && '🔄 Iniciando transferencia...'}
+            {uploadProgress >= 20 && uploadProgress < 50 && '📡 Enviando datos al servidor...'}
+            {uploadProgress >= 50 && uploadProgress < 85 && `⚡ Transferencia en progreso... (archivos grandes pueden tardar varios minutos)`}
+            {uploadProgress >= 85 && uploadProgress < 95 && '🔄 Finalizando upload...'}
+            {uploadProgress >= 95 && '✅ Guardando en servidor y preparando procesamiento...'}
+          </p>
+          <p style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+            💡 No cierres esta ventana. Archivos de 300 MB pueden tardar 2-3 minutos.
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="alert alert-error">
