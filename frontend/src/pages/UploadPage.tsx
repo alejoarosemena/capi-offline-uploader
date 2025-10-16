@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react'
+import './UploadPage.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -20,9 +21,11 @@ export function UploadPage(): JSX.Element {
   const [progress, setProgress] = useState<JobProgress | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warming, setWarming] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const canSubmit = useMemo(() => datasetId.trim().length > 0, [datasetId])
+  const progressPercent = progress ? Math.round((progress.processed_rows / progress.total_rows) * 100) || 0 : 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,6 +36,7 @@ export function UploadPage(): JSX.Element {
       return
     }
     setIsUploading(true)
+    setWarming(true)
     try {
       const form = new FormData()
       form.append('file', file)
@@ -40,10 +44,18 @@ export function UploadPage(): JSX.Element {
       if (uploadTag) form.append('upload_tag', uploadTag)
       if (timezone) form.append('timezone', timezone)
 
+      // Timeout de 60s para cold start de Render Free
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 60000)
+
       const res = await fetch(`${API_BASE_URL}/api/uploads`, {
         method: 'POST',
         body: form,
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
+      setWarming(false)
+
       if (!res.ok) {
         const text = await res.text()
         throw new Error(text || 'Error al iniciar upload')
@@ -52,9 +64,14 @@ export function UploadPage(): JSX.Element {
       setJobId(job_id)
       await pollProgress(job_id)
     } catch (err: any) {
-      setError(err?.message || 'Error desconocido')
+      if (err.name === 'AbortError') {
+        setError('Timeout: El servidor tardó mucho en responder. Intenta nuevamente en 30 segundos.')
+      } else {
+        setError(err?.message || 'Error desconocido')
+      }
     } finally {
       setIsUploading(false)
+      setWarming(false)
     }
   }
 
@@ -79,56 +96,115 @@ export function UploadPage(): JSX.Element {
   }
 
   return (
-    <div style={{ maxWidth: 680, margin: '0 auto', padding: 24 }}>
-      <h1>CAPI Offline CSV Uploader</h1>
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <label>
-            Dataset ID
+    <div className="container">
+      <header className="header">
+        <img src="/logo.png" alt="Logo" className="logo" />
+        <h1 className="title">CAPI Offline CSV Uploader</h1>
+        <p className="subtitle">Sube tus ventas offline a Meta Conversions API</p>
+      </header>
+
+      <div className="card">
+        <form onSubmit={handleSubmit} className="form">
+          <div className="form-group">
+            <label htmlFor="dataset-id">Dataset ID *</label>
             <input
+              id="dataset-id"
+              type="text"
               value={datasetId}
               onChange={(e) => setDatasetId(e.target.value)}
               required
-              placeholder="Ej: 123456789012345"
+              placeholder="1182254526484927"
+              className="input"
             />
-          </label>
+          </div>
 
-          <label>
-            Timezone
-            <input value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="America/Guayaquil" />
-          </label>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="timezone">Timezone</label>
+              <input
+                id="timezone"
+                type="text"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                placeholder="America/Guayaquil"
+                className="input"
+              />
+            </div>
 
-          <label>
-            Upload tag (opcional)
-            <input value={uploadTag} onChange={(e) => setUploadTag(e.target.value)} placeholder="sept-2025-fybeca" />
-          </label>
+            <div className="form-group">
+              <label htmlFor="upload-tag">Upload tag (opcional)</label>
+              <input
+                id="upload-tag"
+                type="text"
+                value={uploadTag}
+                onChange={(e) => setUploadTag(e.target.value)}
+                placeholder="fybeca-sept-2025"
+                className="input"
+              />
+            </div>
+          </div>
 
-          <label>
-            Archivo CSV
-            <input ref={fileInputRef} type="file" accept=".csv" />
-          </label>
+          <div className="form-group">
+            <label htmlFor="file">Archivo CSV *</label>
+            <input ref={fileInputRef} id="file" type="file" accept=".csv" className="input-file" />
+          </div>
 
-          <button type="submit" disabled={!canSubmit || isUploading}>
-            {isUploading ? 'Subiendo…' : 'Subir y procesar'}
+          <button type="submit" disabled={!canSubmit || isUploading} className="btn-primary">
+            {warming ? '⏳ Iniciando servidor...' : isUploading ? '📤 Subiendo...' : '🚀 Subir y procesar'}
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
 
-      {error && <p style={{ color: 'red', marginTop: 12 }}>{error}</p>}
+      {error && (
+        <div className="alert alert-error">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
 
       {progress && (
-        <div style={{ marginTop: 24 }}>
-          <h2>Progreso</h2>
-          <p>
-            Estado: <strong>{progress.status}</strong>
-          </p>
-          <p>
-            {progress.processed_rows}/{progress.total_rows} procesadas — OK: {progress.succeeded} · Errores: {progress.failed}
-          </p>
-          {progress.message && <p>Mensaje: {progress.message}</p>}
-          <button onClick={downloadErrors} disabled={!jobId}>
-            Descargar errores
-          </button>
+        <div className="card">
+          <h2 className="section-title">📊 Progreso del Procesamiento</h2>
+          
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+          <p className="progress-text">{progressPercent}%</p>
+
+          <div className="stats">
+            <div className="stat">
+              <span className="stat-label">Estado</span>
+              <span className={`stat-value status-${progress.status}`}>
+                {progress.status === 'running' && '⚙️ Procesando'}
+                {progress.status === 'completed' && '✅ Completado'}
+                {progress.status === 'failed' && '❌ Falló'}
+                {progress.status === 'pending' && '⏳ Pendiente'}
+              </span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Filas procesadas</span>
+              <span className="stat-value">{progress.processed_rows.toLocaleString()} / {progress.total_rows.toLocaleString()}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Exitosas</span>
+              <span className="stat-value stat-success">{progress.succeeded.toLocaleString()}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Errores</span>
+              <span className="stat-value stat-error">{progress.failed.toLocaleString()}</span>
+            </div>
+          </div>
+
+          {progress.message && (
+            <div className="message">
+              <strong>Mensaje:</strong> {progress.message}
+            </div>
+          )}
+
+          {progress.failed > 0 && (
+            <button onClick={downloadErrors} className="btn-secondary">
+              📥 Descargar reporte de errores
+            </button>
+          )}
         </div>
       )}
     </div>
