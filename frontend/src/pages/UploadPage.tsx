@@ -146,7 +146,14 @@ export function UploadPage(): JSX.Element {
 
           <div className="form-group">
             <label htmlFor="file">Archivo CSV *</label>
-            <input ref={fileInputRef} id="file" type="file" accept=".csv" className="input-file" />
+            <input 
+              ref={fileInputRef} 
+              id="file" 
+              type="file" 
+              accept=".csv,.CSV" 
+              className="input-file"
+              style={{ display: 'block', width: '100%' }}
+            />
           </div>
 
           <button type="submit" disabled={!canSubmit || isUploading} className="btn-primary">

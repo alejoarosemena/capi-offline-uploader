@@ -95,8 +95,11 @@ label {
 
 .input-file {
   padding: 0.75rem;
-  cursor: pointer;
+  cursor: pointer !important;
   background: white;
+  width: 100%;
+  display: block;
+  pointer-events: auto;
 }
 
 .input-file::file-selector-button {
