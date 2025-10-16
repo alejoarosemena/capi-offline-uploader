@@ -100,31 +100,6 @@ async def _process_job(job_id: str, cfg: TransformConfig) -> None:
         progress_store.set(progress)
 
 
-@router.get("/jobs/{job_id}")
-async def get_job(job_id: str):
-    progress = progress_store.get(job_id)
-    if not progress:
-        raise HTTPException(status_code=404, detail="Job no encontrado")
-    return progress.to_dict()
-
-
-@router.post("/jobs/{job_id}/cancel")
-async def cancel_job(job_id: str):
-    progress = progress_store.get(job_id)
-    if not progress:
-        raise HTTPException(status_code=404, detail="Job no encontrado")
-    
-    if progress.status in ("completed", "failed", "cancelled"):
-        raise HTTPException(status_code=400, detail=f"No se puede cancelar un job con estado: {progress.status}")
-    
-    # Set cancellation flag
-    progress.should_cancel = True
-    progress_store.set(progress)
-    logger.info(f"Cancellation requested for job {job_id}")
-    
-    return {"message": "Cancelación solicitada", "job_id": job_id}
-
-
 @router.post("/jobs/cancel-all")
 async def cancel_all_jobs():
     """Cancel all running and pending jobs"""
@@ -148,6 +123,31 @@ async def cancel_all_jobs():
         "message": f"Se solicitó cancelación de {len(cancelled_jobs)} jobs",
         "cancelled": cancelled_jobs
     }
+
+
+@router.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    progress = progress_store.get(job_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="Job no encontrado")
+    return progress.to_dict()
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    progress = progress_store.get(job_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="Job no encontrado")
+    
+    if progress.status in ("completed", "failed", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"No se puede cancelar un job con estado: {progress.status}")
+    
+    # Set cancellation flag
+    progress.should_cancel = True
+    progress_store.set(progress)
+    logger.info(f"Cancellation requested for job {job_id}")
+    
+    return {"message": "Cancelación solicitada", "job_id": job_id}
 
 
 @router.get("/jobs/{job_id}/errors")
