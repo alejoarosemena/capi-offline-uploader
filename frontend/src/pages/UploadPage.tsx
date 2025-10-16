@@ -131,6 +131,19 @@ export function UploadPage(): JSX.Element {
         <img src="/logo.png" alt="Logo" className="logo" />
         <h1 className="title">CAPI Offline CSV Uploader</h1>
         <p className="subtitle">Sube tus ventas offline a Meta Conversions API</p>
+        {import.meta.env.DEV && (
+          <div style={{ 
+            background: '#fef3c7', 
+            border: '2px solid #f59e0b', 
+            borderRadius: '8px', 
+            padding: '0.5rem 1rem', 
+            marginTop: '1rem',
+            fontSize: '0.85rem',
+            color: '#92400e'
+          }}>
+            🔧 Dev Mode - API: {API_BASE_URL}
+          </div>
+        )}
       </header>
 
       <div className="card">
@@ -223,6 +236,18 @@ export function UploadPage(): JSX.Element {
       {error && (
         <div className="alert alert-error">
           <strong>Error:</strong> {error}
+          <details style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+            <summary style={{ cursor: 'pointer', color: '#991b1b', fontWeight: 600 }}>🔍 Información de diagnóstico</summary>
+            <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fef2f2', borderRadius: '4px' }}>
+              <p><strong>Backend URL:</strong> {API_BASE_URL}</p>
+              <p><strong>Test endpoint:</strong> <a href={`${API_BASE_URL}/api/health`} target="_blank" rel="noopener noreferrer" style={{ color: '#991b1b', textDecoration: 'underline' }}>
+                {API_BASE_URL}/api/health
+              </a></p>
+              <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                💡 Si el link de arriba no abre, el backend no está accesible.
+              </p>
+            </div>
+          </details>
         </div>
       )}
 
