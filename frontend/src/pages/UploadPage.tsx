@@ -125,12 +125,57 @@ export function UploadPage(): JSX.Element {
     window.open(`${API_BASE_URL}/api/jobs/${jobId}/errors`, '_blank')
   }
 
+  async function cancelJob() {
+    if (!jobId) return
+    if (!confirm('¿Estás seguro de cancelar este proceso?')) return
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/cancel`, { method: 'POST' })
+      if (res.ok) {
+        setError(null)
+      } else {
+        const text = await res.text()
+        setError(`Error al cancelar: ${text}`)
+      }
+    } catch (err: any) {
+      setError(`Error al cancelar: ${err.message}`)
+    }
+  }
+
+  async function cancelAllJobs() {
+    if (!confirm('¿Estás seguro de CANCELAR TODOS los procesos activos?')) return
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/jobs/cancel-all`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        alert(`✅ ${data.message}`)
+      } else {
+        const text = await res.text()
+        alert(`❌ Error: ${text}`)
+      }
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`)
+    }
+  }
+
   return (
     <div className="container">
       <header className="header">
         <img src="/logo.png" alt="Logo" className="logo" />
         <h1 className="title">CAPI Offline CSV Uploader</h1>
         <p className="subtitle">Sube tus ventas offline a Meta Conversions API</p>
+        <button 
+          onClick={cancelAllJobs} 
+          className="btn-kill-all"
+          style={{ 
+            marginTop: '1rem',
+            padding: '0.5rem 1rem',
+            fontSize: '0.9rem'
+          }}
+        >
+          🛑 Cancelar todos los procesos
+        </button>
         {import.meta.env.DEV && (
           <div style={{ 
             background: '#fef3c7', 
@@ -266,11 +311,18 @@ export function UploadPage(): JSX.Element {
             </div>
           )}
 
-          {progress.failed > 0 && (
-            <button onClick={downloadErrors} className="btn-secondary">
-              📥 Descargar reporte de errores
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+            {progress.failed > 0 && (
+              <button onClick={downloadErrors} className="btn-secondary">
+                📥 Descargar errores
+              </button>
+            )}
+            {progress.status === 'running' && (
+              <button onClick={cancelJob} className="btn-danger">
+                ⏹️ Cancelar proceso
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

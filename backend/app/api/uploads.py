@@ -67,6 +67,15 @@ async def _process_job(job_id: str, cfg: TransformConfig) -> None:
         client = CapiClient(access_token=settings.meta_access_token)
         try:
             for batch in iter_event_batches(progress_store.input_path(job_id), cfg, progress, progress_store, settings.batch_size):
+                # Check if cancellation was requested
+                current_progress = progress_store.get(job_id)
+                if current_progress and current_progress.should_cancel:
+                    logger.info(f"Job {job_id} cancelled by user at batch {total_batches}")
+                    progress.status = "cancelled"
+                    progress.message = f"Cancelado por usuario después de {total_batches} lotes"
+                    progress_store.set(progress)
+                    return
+                
                 total_batches += 1
                 logger.info(f"Processing batch {total_batches} ({len(batch)} events)")
                 ok, info = await client.send_batch(cfg.dataset_id, batch, upload_tag=cfg.upload_tag)
@@ -97,6 +106,48 @@ async def get_job(job_id: str):
     if not progress:
         raise HTTPException(status_code=404, detail="Job no encontrado")
     return progress.to_dict()
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    progress = progress_store.get(job_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="Job no encontrado")
+    
+    if progress.status in ("completed", "failed", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"No se puede cancelar un job con estado: {progress.status}")
+    
+    # Set cancellation flag
+    progress.should_cancel = True
+    progress_store.set(progress)
+    logger.info(f"Cancellation requested for job {job_id}")
+    
+    return {"message": "Cancelación solicitada", "job_id": job_id}
+
+
+@router.post("/jobs/cancel-all")
+async def cancel_all_jobs():
+    """Cancel all running and pending jobs"""
+    cancelled_jobs = []
+    jobs_dir = settings.uploads_dir
+    
+    if not jobs_dir.exists():
+        return {"message": "No hay jobs", "cancelled": []}
+    
+    for job_dir in jobs_dir.iterdir():
+        if job_dir.is_dir():
+            job_id = job_dir.name
+            progress = progress_store.get(job_id)
+            if progress and progress.status in ("running", "pending"):
+                progress.should_cancel = True
+                progress_store.set(progress)
+                cancelled_jobs.append(job_id)
+                logger.info(f"Cancellation requested for job {job_id} (via cancel-all)")
+    
+    return {
+        "message": f"Se solicitó cancelación de {len(cancelled_jobs)} jobs",
+        "cancelled": cancelled_jobs
+    }
 
 
 @router.get("/jobs/{job_id}/errors")

@@ -15,8 +15,9 @@ class JobProgress:
     processed_rows: int = 0
     succeeded: int = 0
     failed: int = 0
-    status: str = "pending"  # pending | running | completed | failed
+    status: str = "pending"  # pending | running | completed | failed | cancelled
     message: str = ""
+    should_cancel: bool = False  # Flag to signal cancellation
 
     def to_dict(self) -> dict:
         return asdict(self)
