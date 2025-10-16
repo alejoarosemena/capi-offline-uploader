@@ -24,8 +24,19 @@ export function UploadPage(): JSX.Element {
   const [warming, setWarming] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const canSubmit = useMemo(() => datasetId.trim().length > 0, [datasetId])
+  const [fileName, setFileName] = useState<string>('')
+  
+  const canSubmit = useMemo(() => datasetId.trim().length > 0 && fileName.length > 0, [datasetId, fileName])
   const progressPercent = progress ? Math.round((progress.processed_rows / progress.total_rows) * 100) || 0 : 0
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    setFileName(file?.name || '')
+  }
+
+  function triggerFileInput() {
+    fileInputRef.current?.click()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -145,15 +156,20 @@ export function UploadPage(): JSX.Element {
           </div>
 
           <div className="form-group">
-            <label htmlFor="file">Archivo CSV *</label>
+            <label>Archivo CSV *</label>
             <input 
               ref={fileInputRef} 
-              id="file" 
               type="file" 
               accept=".csv,.CSV" 
-              className="input-file"
-              style={{ display: 'block', width: '100%' }}
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
             />
+            <div className="file-input-wrapper">
+              <button type="button" onClick={triggerFileInput} className="btn-file">
+                📁 Seleccionar archivo
+              </button>
+              <span className="file-name">{fileName || 'Ningún archivo seleccionado'}</span>
+            </div>
           </div>
 
           <button type="submit" disabled={!canSubmit || isUploading} className="btn-primary">
