@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: capi-offline-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: GRAPH_API_VERSION
+        value: v20.0
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: TIMEZONE_DEFAULT
+        value: America/Guayaquil
+

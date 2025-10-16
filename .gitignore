@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Env
+.env
+backend/.env
+frontend/.env
+
+# Uploads and logs
+uploads/
+backend/uploads/
+backend/test_transform.py
+
+# Large CSV files (keep only samples)
+Ventas Fybeca/
+test_sample_100_rows.csv
+test_10_rows.csv
+
+# Mac
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
