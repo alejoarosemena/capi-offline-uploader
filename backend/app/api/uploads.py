@@ -24,9 +24,19 @@ async def create_upload(
     event_name: str = Form("Purchase"),
     upload_tag: Optional[str] = Form(None),
     timezone: str = Form(None),
+    company: str = Form("fybeca"),  # Nueva opción: "fybeca" o "sanasana"
+    access_token: Optional[str] = Form(None),  # Token opcional si se proporciona
 ):
-    if not settings.meta_access_token:
-        raise HTTPException(status_code=500, detail="META_ACCESS_TOKEN no configurado en backend")
+    # Determinar el token según la empresa
+    if company == "sanasana":
+        # SanaSana usa su propio token
+        token = access_token or "EAAC7kR5pkCABPqw4pZAZACWMqGpSQGtTKxZC4dGtmG5rHA2JE8oWjS2i1mJ9ZBn0ywpZCX1exp2hNAOipfhEyXj1DMbRpYjdpHscLuXYrxDjgbUXe9RM6VZCc0mmP1q8n7NsxKZApaC2C1pL6akXUZBjcdvjt4GE08QtZB4YZAFHQ0TQKRXekJaG0ZAoZBptsqxN2wZDZD"
+    else:
+        # Fybeca usa el token del .env
+        token = settings.meta_access_token
+    
+    if not token:
+        raise HTTPException(status_code=500, detail="Token de acceso no configurado para esta empresa")
 
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos .csv")
@@ -49,12 +59,12 @@ async def create_upload(
     tz = timezone or settings.timezone_default
     cfg = TransformConfig(dataset_id=dataset_id, event_name=event_name, upload_tag=upload_tag, timezone=tz)
 
-    background_tasks.add_task(_process_job, job_id, cfg)
+    background_tasks.add_task(_process_job, job_id, cfg, token)
 
     return {"job_id": job_id}
 
 
-async def _process_job(job_id: str, cfg: TransformConfig) -> None:
+async def _process_job(job_id: str, cfg: TransformConfig, access_token: str) -> None:
     logger.info(f"Starting job {job_id} for dataset {cfg.dataset_id}")
     progress = progress_store.get(job_id)
     if not progress:
@@ -64,7 +74,7 @@ async def _process_job(job_id: str, cfg: TransformConfig) -> None:
         # Stream-transform and send in batches without keeping all events in memory
         failed_batches = 0
         total_batches = 0
-        client = CapiClient(access_token=settings.meta_access_token)
+        client = CapiClient(access_token=access_token)
         try:
             for batch in iter_event_batches(progress_store.input_path(job_id), cfg, progress, progress_store, settings.batch_size):
                 # Check if cancellation was requested

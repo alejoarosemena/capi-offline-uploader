@@ -6,7 +6,7 @@ import csv
 import io
 
 # Configuración
-API_BASE = "https://capi-offline-uploader.onrender.com"
+API_BASE = "https://capi-offline-uploader.onrender.com"  # URL correcta confirmada
 # API_BASE = "http://localhost:8000"  # Descomentar para probar local
 
 def create_test_csv():

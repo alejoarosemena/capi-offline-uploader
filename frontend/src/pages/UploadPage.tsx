@@ -14,7 +14,7 @@ type JobProgress = {
 }
 
 export function UploadPage(): JSX.Element {
-  const DATASET_ID = '1182254526484927' // Hardcoded dataset ID
+  const [company, setCompany] = useState<'fybeca' | 'sanasana'>('fybeca')
   const [timezone, setTimezone] = useState('America/Guayaquil')
   const [uploadTag, setUploadTag] = useState('')
   const [jobId, setJobId] = useState<string | null>(null)
@@ -26,6 +26,9 @@ export function UploadPage(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [fileName, setFileName] = useState<string>('')
+  
+  // Dataset IDs según la empresa
+  const DATASET_ID = company === 'fybeca' ? '1182254526484927' : '713504914322620'
   
   const canSubmit = useMemo(() => fileName.length > 0, [fileName])
   const progressPercent = progress ? Math.round((progress.processed_rows / progress.total_rows) * 100) || 0 : 0
@@ -55,6 +58,7 @@ export function UploadPage(): JSX.Element {
       const form = new FormData()
       form.append('file', file)
       form.append('dataset_id', DATASET_ID)
+      form.append('company', company)
       if (uploadTag) form.append('upload_tag', uploadTag)
       if (timezone) form.append('timezone', timezone)
 
@@ -209,13 +213,57 @@ export function UploadPage(): JSX.Element {
       <div className="card">
         <form onSubmit={handleSubmit} className="form">
           <div className="form-group">
+            <label>Empresa *</label>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setCompany('fybeca')}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  border: `2px solid ${company === 'fybeca' ? '#10b981' : '#d1d5db'}`,
+                  borderRadius: '8px',
+                  background: company === 'fybeca' ? '#ecfdf5' : 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ fontSize: '1.2rem', marginBottom: '0.25rem' }}>🏥</div>
+                <div style={{ fontWeight: company === 'fybeca' ? 'bold' : 'normal' }}>Fybeca</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                  Dataset: {company === 'fybeca' ? '1182254526484927' : ''}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompany('sanasana')}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  border: `2px solid ${company === 'sanasana' ? '#10b981' : '#d1d5db'}`,
+                  borderRadius: '8px',
+                  background: company === 'sanasana' ? '#ecfdf5' : 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ fontSize: '1.2rem', marginBottom: '0.25rem' }}>💊</div>
+                <div style={{ fontWeight: company === 'sanasana' ? 'bold' : 'normal' }}>SanaSana</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                  Dataset: {company === 'sanasana' ? '713504914322620' : ''}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="upload-tag">Etiqueta del upload (opcional)</label>
             <input
               id="upload-tag"
               type="text"
               value={uploadTag}
               onChange={(e) => setUploadTag(e.target.value)}
-              placeholder="fybeca-septiembre-2025"
+              placeholder={`${company}-octubre-2025`}
               className="input"
             />
             <span style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
@@ -290,6 +338,9 @@ export function UploadPage(): JSX.Element {
       {progress && (
         <div className="card">
           <h2 className="section-title">📊 Progreso del Procesamiento</h2>
+          <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.9rem', marginBottom: '1rem' }}>
+            {company === 'fybeca' ? '🏥 Fybeca' : '💊 SanaSana'} - Dataset: {DATASET_ID}
+          </p>
           
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
