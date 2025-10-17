@@ -30,7 +30,7 @@ export function UploadPage(): JSX.Element {
   // Dataset IDs según la empresa
   const DATASET_ID = company === 'fybeca' ? '1182254526484927' : '713504914322620'
   
-  const canSubmit = useMemo(() => fileName.length > 0, [fileName])
+  const canSubmit = useMemo(() => fileName.length > 0 && uploadTag.trim().length > 0, [fileName, uploadTag])
   const progressPercent = progress ? Math.round((progress.processed_rows / progress.total_rows) * 100) || 0 : 0
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -257,7 +257,7 @@ export function UploadPage(): JSX.Element {
           </div>
 
           <div className="form-group">
-            <label htmlFor="upload-tag">Etiqueta del upload (opcional)</label>
+            <label htmlFor="upload-tag">Etiqueta del upload *</label>
             <input
               id="upload-tag"
               type="text"
@@ -265,9 +265,10 @@ export function UploadPage(): JSX.Element {
               onChange={(e) => setUploadTag(e.target.value)}
               placeholder={`${company}-octubre-2025`}
               className="input"
+              required
             />
             <span style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
-              Ayuda a identificar este lote de datos en Meta
+              Obligatorio: Identifica este lote de datos en Meta
             </span>
           </div>
 
